@@ -14,29 +14,23 @@ function isValidUrl(s) {
 }
 
 async function fetchShortenURL(inputValue) {
-    const apiKey = '8943b7fd64cd8b1770ff5affa9a9437b';
-
     const apiUrl =
-        `https://www.shareaholic.com/v2/share/shorten_link` +
-        `?apikey=${apiKey}` +
-        `&url=${encodeURIComponent(inputValue)}`;
+        `https://is.gd/create.php?format=json&url=${encodeURIComponent(inputValue)}`;
 
     const response = await fetch(apiUrl);
-
     const data = await response.json();
 
-    
+    console.log("API response:", data);
+
     if (!response.ok) {
-        console.error('Shareaholic API Error:', data);
-
-        if (response.status === 429) {
-    throw new Error('Too many requests. Please try again later.');
-}
-
-throw new Error(data.errors?.[0]?.detail || 'Failed to shorten the URL.');
+        throw new Error(data.error || 'Failed to shorten the URL.');
     }
 
-    return data;
+    if (!data.shorturl) {
+        throw new Error(data.error || 'No shortened URL returned.');
+    }
+
+    return data.shorturl;
 }
 
 function renderResults() {
@@ -89,60 +83,30 @@ function copyLink(btn, link) {
     });
 }
 
-async function shortenUrl() {
-    const input = document.querySelector('.input-field');
-    const err = document.querySelector('.error-text');
+try {
+    const shortUrl = await fetchShortenURL(val);
 
-    const val = input.value.trim();
+    console.log("Short URL:", shortUrl);
 
-    if (!val) {
-        input.classList.add('error');
-        err.textContent = 'Please add a link';
-        err.classList.add('show');
-        return;
-    }
+    shortLinks.push({
+        originalUrl: val,
+        shortenUrl: shortUrl
+    });
 
-    if (!isValidUrl(val)) {
-        input.classList.add('error');
-        err.textContent =
-            'Please enter a valid URL (e.g. https://example.com)';
-        err.classList.add('show');
-        return;
-    }
+    localStorage.setItem(
+        'sl_links_v1',
+        JSON.stringify(shortLinks)
+    );
 
-    input.classList.remove('error');
-    err.classList.remove('show');
+    input.value = '';
+    renderResults();
 
-    try {
-        const data = await fetchShortenURL(val);
+} catch (error) {
+    console.error(error);
 
-        
-        if (!data.data) {
-            console.error('Unexpected API response:', data);
-            throw new Error('The API did not return a shortened URL.');
-        }
-
-        shortLinks.push({
-            originalUrl: val,
-            shortenUrl: data.data
-        });
-
-        localStorage.setItem(
-            'sl_links_v1',
-            JSON.stringify(shortLinks)
-        );
-
-        input.value = '';
-
-        renderResults();
-
-    } catch (error) {
-        console.error(error);
-
-        input.classList.add('error');
-        err.textContent = error.message;
-        err.classList.add('show');
-    }
+    input.classList.add('error');
+    err.textContent = error.message;
+    err.classList.add('show');
 }
 
 document.querySelector('.input-field').addEventListener('keydown', e => {
